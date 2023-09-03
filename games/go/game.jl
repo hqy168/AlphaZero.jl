@@ -15,8 +15,8 @@ const KO = 3
 const UNKNOWN = 4
 
 const Cell = Player
-const Board = SMatrix{NUM_COLS, NUM_ROWS, Cell, NUM_POSITIONS}
-const INITIAL_BOARD = @SMatrix zeros(Cell, NUM_COLS, NUM_ROWS)
+const Board = MMatrix{NUM_COLS, NUM_ROWS, Cell} # SMatrix{NUM_COLS, NUM_ROWS, Cell, NUM_POSITIONS}
+const INITIAL_BOARD = @MMatrix zeros(Cell, NUM_COLS, NUM_ROWS)
 const ALL_COORDS = [(i, j) for i = 1:NUM_ROWS for j = 1:NUM_COLS]
 check_bounds(c) = 1 <= c[1] <= BOARD_SIZE && 1 <= c[2] <= BOARD_SIZE
 const NEIGHBORS = Dict((x, y) => filter(k->check_bounds(k),[(x+1, y), (x-1, y), (x, y+1), (x, y-1)]) for (x, y) in ALL_COORDS)
@@ -41,6 +41,8 @@ mutable struct GameEnv <: GI.AbstractGameEnv
   diagonals::Dict{NTuple{2, Int}, Array{NTuple{2, Int}, 1}}
   
 end
+
+include("board.jl")
 
 GI.init(::GameSpec, state=INITIAL_STATE) = GameEnv(state.board, state.curplayer, state.finished, state.winner, state.amask, state.boardSize, state.planes, state.emptyBoard, state.neighbors, state.diagonals)
 
@@ -76,6 +78,7 @@ xy_of_pos(pos) = ((pos - 1) % BOARD_SIZE + 1, (pos - 1) ÷ BOARD_SIZE + 1)
 function has_won(g::GameEnv, player)
   pos = GoPosition(g)
   points = score(pos)
+  # println("points=$points")
   won = points > 0  
 end
 
@@ -91,14 +94,13 @@ GI.actions(::GameSpec) = ACTIONS
 
 function update_actions_mask!(g::GameEnv)
     g.amask = map(ACTIONS) do pos
-      (x, y) = xy_of_pos(pos)
-      g.board[y][x] == EMPTY
+      g.board[pos] == EMPTY
     end
   end
 
 GI.actions_mask(g::GameEnv) = g.amask
 
-GI.current_state(g::GameEnv) = (board=g.board, curplayer=g.curplayer)
+GI.current_state(g::GameEnv) = (board=g.board, curplayer=g.curplayer, finished=g.finished, winner=g.winner, amask=g.amask, boardSize=g.boardSize, planes=g.planes, emptyBoard=g.emptyBoard, neighbors=g.neighbors, diagonals=g.diagonals)
 
 GI.white_playing(g::GameEnv) = g.curplayer == BLACK
 
@@ -117,30 +119,30 @@ function GI.white_reward(g::GameEnv)
 end
 
 function GI.play!(g::GameEnv, pos)
-  g.board = setindex(g.board, g.curplayer, pos)
+  # g.board = setindex(g.board, g.curplayer, pos)
+  g.board[pos] = g.curplayer
   g.curplayer = -g.curplayer
+  update_actions_mask!(g)
+  p = g.curplayer
+  m = g.amask
+  # println("curplayer=$p pos=$pos amask=$m")
 end
 
 #####
 ##### Simple heuristic for minmax
 #####
 
-function alignment_value_for(g::GameEnv, player, alignment)
-  γ = 0.3
-  N = 0
-  for pos in alignment
-    mark = g.board[pos]
-    if mark == player
-      N += 1
-    elseif !isnothing(mark)
-      return 0.
-    end
+function score_for(g::GameEnv, player)
+  pos = GoPosition(g)
+  estimate = score(pos)
+  if player == WHITE
+    estimate = -estimate
   end
-  return γ ^ (BOARD_SIZE - 1 - N)
+  return estimate
 end
 
 function heuristic_value_for(g::GameEnv, player)
-  return sum(alignment_value_for(g, player, al) for al in ALIGNMENTS)
+  return score_for(g, player)
 end
 
 function GI.heuristic_value(g::GameEnv)
@@ -193,7 +195,7 @@ const SYMMETRIES = generate_dihedral_symmetries()
 
 function GI.symmetries(::GameSpec, s)
   return [
-    ((board=Board(s.board[sym]), curplayer=s.curplayer), sym)
+    ((board=Board(s.board[sym]), curplayer=s.curplayer, finished=s.finished, winner=s.winner, amask=s.amask, boardSize=s.boardSize, planes=s.planes, emptyBoard=s.emptyBoard, neighbors=s.neighbors, diagonals=s.diagonals), sym)
     for sym in SYMMETRIES]
 end
 

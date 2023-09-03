@@ -23,7 +23,8 @@ same_state(game1, game2) = GI.current_state(game1) == GI.current_state(game2)
 function test_symmetry(gspec, state, (symstate, aperm))
   mask = GI.actions_mask(GI.init(gspec, state))
   symmask = GI.actions_mask(GI.init(gspec, symstate))
-  return symmask == mask[aperm]
+  omask = mask[aperm]
+  return symmask == omask
 end
 
 """

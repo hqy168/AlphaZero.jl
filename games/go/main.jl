@@ -8,5 +8,5 @@ using Printf: @sprintf
     import ..GameSpec
     include("params.jl")
   end
-  include("board.jl")
+  
 end
