@@ -15,7 +15,7 @@ const KO = 3
 const UNKNOWN = 4
 
 const Cell = Player
-const Board = MMatrix{NUM_COLS, NUM_ROWS, Cell} # SMatrix{NUM_COLS, NUM_ROWS, Cell, NUM_POSITIONS}
+const Board = MMatrix # SMatrix{NUM_COLS, NUM_ROWS, Cell, NUM_POSITIONS}
 const INITIAL_BOARD = @MMatrix zeros(Cell, NUM_COLS, NUM_ROWS)
 const ALL_COORDS = [(i, j) for i = 1:NUM_ROWS for j = 1:NUM_COLS]
 check_bounds(c) = 1 <= c[1] <= BOARD_SIZE && 1 <= c[2] <= BOARD_SIZE
@@ -210,10 +210,10 @@ end
 
 function GI.parse_action(::GameSpec, str)
   length(str) == 2 || (return nothing)
-  x = Int(uppercase(str[1])) - Int('A')
-  y = Int(uppercase(str[2])) - Int('A')
+  x = Int(uppercase(str[1])) - Int('A') + 1
+  y = Int(uppercase(str[2])) - Int('A') + 1
   n = pos_of_xy((x, y))
-  (0 <= n < NUM_POSITIONS) ? n + 1 : nothing
+  (0 < n < NUM_POSITIONS + 1) ? n : nothing
 end
 
 function read_board(::GameSpec)
@@ -256,7 +256,7 @@ function GI.render(g::GameEnv; with_position_names=true, botmargin=true)
     for x in 1:BOARD_SIZE
       pos = pos_of_xy((x, y))
       c = g.board[pos]
-      if isnothing(c)
+      if isnothing(c) || c == EMPTY
         print(" ")
       else
         print(player_color(c), player_mark(c), crayon"reset")
