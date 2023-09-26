@@ -6,7 +6,7 @@ const NUM_COLS = BOARD_SIZE
 const NUM_ROWS = BOARD_SIZE
 const NUM_POSITIONS = BOARD_SIZE ^ 2
 
-const Player = Int8
+const Player = Int
 const WHITE = -1
 const EMPTY = 0
 const BLACK = 1
@@ -15,36 +15,62 @@ const KO = 3
 const UNKNOWN = 4
 
 const Cell = Player
-const Board = MMatrix # SMatrix{NUM_COLS, NUM_ROWS, Cell, NUM_POSITIONS}
-const INITIAL_BOARD = @MMatrix zeros(Cell, NUM_COLS, NUM_ROWS)
-const ALL_COORDS = [(i, j) for i = 1:NUM_ROWS for j = 1:NUM_COLS]
-check_bounds(c) = 1 <= c[1] <= BOARD_SIZE && 1 <= c[2] <= BOARD_SIZE
-const NEIGHBORS = Dict((x, y) => filter(k->check_bounds(k),[(x+1, y), (x-1, y), (x, y+1), (x, y-1)]) for (x, y) in ALL_COORDS)
-const DIAGONALS = Dict((x, y) => filter(k->check_bounds(k),[(x+1, y+1), (x+1, y-1), (x-1, y+1), (x-1, y-1)]) for (x, y) in ALL_COORDS)
-const INITIAL_STATE = (board=INITIAL_BOARD, curplayer=BLACK, finished=false, winner = 0x00, amask = trues(NUM_POSITIONS), boardSize=BOARD_SIZE, planes=8, emptyBoard=INITIAL_BOARD, neighbors=NEIGHBORS,diagonals=DIAGONALS)
+const Board = MMatrix{NUM_ROWS, NUM_COLS, Cell, NUM_POSITIONS} # SMatrix{NUM_COLS, NUM_ROWS, Cell, NUM_POSITIONS}
+const INITIAL_BOARD = @MMatrix zeros(Cell, NUM_ROWS, NUM_COLS)
+const NUM_PLANES = 17
+# const EMPTY_BOARD = @MMatrix zeros(Cell, NUM_ROWS, NUM_COLS)
+# const ALL_COORDS = [(i, j) for i = 1:NUM_ROWS for j = 1:NUM_COLS]
+# check_bounds(c) = 1 <= c[1] <= BOARD_SIZE && 1 <= c[2] <= BOARD_SIZE
+# const NEIGHBORS = Dict((x, y) => filter(k->check_bounds(k),[(x+1, y), (x-1, y), (x, y+1), (x, y-1)]) for (x, y) in ALL_COORDS)
+# const DIAGONALS = Dict((x, y) => filter(k->check_bounds(k),[(x+1, y+1), (x+1, y-1), (x-1, y+1), (x-1, y-1)]) for (x, y) in ALL_COORDS)
+# const INITIAL_STATE = (board=INITIAL_BOARD, curplayer=BLACK, finished=false, winner = 0x00, amask = trues(NUM_POSITIONS), boardSize=BOARD_SIZE, planes=8, emptyBoard=EMPTY_BOARD, neighbors=NEIGHBORS,diagonals=DIAGONALS)
+const INITIAL_STATE = (board=INITIAL_BOARD, curplayer=BLACK)
 
 # TODO: we could have the game parametrized by grid size.
 struct GameSpec <: GI.AbstractGameSpec end
 
 mutable struct GameEnv <: GI.AbstractGameEnv
+  boardSize::Int
+  planes::Int
   board :: Board
   curplayer :: Player
   finished :: Bool
   winner :: Player
   amask :: Vector{Bool} # actions mask
-  boardSize::Int
+
 #   action_space::Int
-  planes::Int
+
 #   max_action_space::Int
   emptyBoard::Board
   neighbors::Dict{NTuple{2, Int}, Array{NTuple{2, Int}, 1}}
   diagonals::Dict{NTuple{2, Int}, Array{NTuple{2, Int}, 1}}
-  
+
+  function GameEnv(board::Board = INITIAL_BOARD, curplayer::Cell = BLACK)    
+    N = BOARD_SIZE
+    L = N * N    
+    ALL_COORDS_N = [(i, j) for i = 1:N for j = 1:N]
+    EMPTY_BOARD_N = MMatrix{N, N, Cell, L}(zeros(Int8, N, N))
+    planes = NUM_PLANES
+    @assert planes % 2 == 1
+    planes = (planes - 1) ÷ 2
+    # current_player = BLACK
+    finished = false
+    winner = 0x00
+    amask = trues(NUM_POSITIONS)
+    check_bounds(c) = 1 <= c[1] <= N && 1 <= c[2] <= N
+
+    NEIGHBORS_N = Dict((x, y) => filter(k->check_bounds(k),
+                              [(x+1, y), (x-1, y), (x, y+1), (x, y-1)]) for (x, y) in ALL_COORDS_N)
+    DIAGONALS_N = Dict((x, y) => filter(k->check_bounds(k),
+                              [(x+1, y+1), (x+1, y-1), (x-1, y+1), (x-1, y-1)]) for (x, y) in ALL_COORDS_N)
+    new(N, planes, board, curplayer, finished, winner, amask, EMPTY_BOARD_N, NEIGHBORS_N, DIAGONALS_N)
+  end
+
 end
 
 include("board.jl")
 
-GI.init(::GameSpec, state=INITIAL_STATE) = GameEnv(state.board, state.curplayer, state.finished, state.winner, state.amask, state.boardSize, state.planes, state.emptyBoard, state.neighbors, state.diagonals)
+GI.init(::GameSpec, state=INITIAL_STATE) = GameEnv(state.board, state.curplayer) #GameEnv(state.boardSize, state.planes, state.board, state.curplayer, state.finished, state.winner, state.amask, state.emptyBoard, NEIGHBORS, DIAGONALS)
 
 GI.spec(::GameEnv) = GameSpec()
 
@@ -56,13 +82,13 @@ function GI.set_state!(g::GameEnv, state)
   update_actions_mask!(g)
   any(g.amask) || (g.finished = true)
 #   g.finished = state.find_reached
-  g.winner = state.winner
-  g.amask = state.amask
-  g.boardSize = state.boardSize
-  g.planes = state.planes
-  g.emptyBoard = state.emptyBoard
-  g.neighbors = state.neighbors
-  g.diagonals = state.diagonals
+  # g.winner = state.winner
+  # g.amask = state.amask
+  # g.boardSize = state.boardSize
+  # g.planes = state.planes
+  # g.emptyBoard = state.emptyBoard
+  # g.neighbors = state.neighbors
+  # g.diagonals = state.diagonals
 end
 
 #####
@@ -78,8 +104,9 @@ xy_of_pos(pos) = ((pos - 1) % BOARD_SIZE + 1, (pos - 1) ÷ BOARD_SIZE + 1)
 function has_won(g::GameEnv, player)
   pos = GoPosition(g)
   points = score(pos)
-  # println("points=$points")
-  won = points > 0  
+  # print("points=", points, ", done=", pos.done, ", player=", player, "\n\n")
+  won = pos.done && ((points > 0  && player == BLACK) || (points < 0 && player == WHITE))
+  return won
 end
 
 #####
@@ -93,25 +120,54 @@ getmask(c) = c == EMPTY
 GI.actions(::GameSpec) = ACTIONS
 
 function update_actions_mask!(g::GameEnv)
-    g.amask = map(ACTIONS) do pos
-      g.board[pos] == EMPTY
+  g.amask = map(ACTIONS) do pos
+    # g.board[pos] == EMPTY
+    position = GoPosition(g)
+    c = xy_of_pos(pos)
+    valid = is_move_legal(position, c)
+    if valid
+      try
+        play_move!(position, c; color = g.curplayer)
+        valid = true
+      catch e
+        # print("exception:", e, "\n\n")
+        if isa(e, IllegalMove) 
+          valid = false
+        end
+      end
     end
+    return valid
   end
+  # len = length(g.amask)
+  # for p in collect(1:len)
+  #   flag = (g.board[p] == EMPTY)
+  #   g.amask[p] = flag
+  # end
+end
 
-GI.actions_mask(g::GameEnv) = g.amask
+function GI.actions_mask(g::GameEnv) 
+  update_actions_mask!(g)
+  return g.amask
+end
 
-GI.current_state(g::GameEnv) = (board=g.board, curplayer=g.curplayer, finished=g.finished, winner=g.winner, amask=g.amask, boardSize=g.boardSize, planes=g.planes, emptyBoard=g.emptyBoard, neighbors=g.neighbors, diagonals=g.diagonals)
+GI.current_state(g::GameEnv) = (board=g.board, curplayer=g.curplayer)
 
-GI.white_playing(g::GameEnv) = g.curplayer == BLACK
+GI.white_playing(g::GameEnv) = g.curplayer == WHITE
 
 function terminal_white_reward(g::GameEnv)
-  has_won(g, WHITE) && return 1.
-  has_won(g, BLACK) && return -1.
-  isempty(GI.available_actions(g)) && return 0.
+  has_won(g, WHITE) && return -1.
+  has_won(g, BLACK) && return 1.
+  avail_actions = GI.available_actions(g)
+  # print("g.amask=", g.amask, " avail_actions=", avail_actions, "\n\n")
+  isempty(avail_actions) && return 0.
   return nothing
 end
 
-GI.game_terminated(g::GameEnv) = !isnothing(terminal_white_reward(g))
+function GI.game_terminated(g::GameEnv)
+  twr = terminal_white_reward(g)
+  # print("GI.game_terminated: terminal_white_reward=", twr, "\n\n")
+  !isnothing(twr)
+end
 
 function GI.white_reward(g::GameEnv)
   z = terminal_white_reward(g)
@@ -120,12 +176,19 @@ end
 
 function GI.play!(g::GameEnv, pos)
   # g.board = setindex(g.board, g.curplayer, pos)
-  g.board[pos] = g.curplayer
-  g.curplayer = -g.curplayer
-  update_actions_mask!(g)
-  p = g.curplayer
-  m = g.amask
-  # println("curplayer=$p pos=$pos amask=$m")
+  # g.board[pos] = g.curplayer 
+  # update_actions_mask!(g)
+  position = GoPosition(g)
+  c = xy_of_pos(pos)
+  newPosition = play_move!(position, c; color = g.curplayer)
+  len = length(newPosition.board)
+  for i in collect(1:len)
+    g.board[i] = newPosition.board[i]
+  end
+  g.curplayer = -g.curplayer 
+  # p = g.curplayer
+  # m = g.amask
+  # println("curplayer=", g.curplayer, " board=", g.board, "\n\n")
 end
 
 #####
@@ -195,7 +258,7 @@ const SYMMETRIES = generate_dihedral_symmetries()
 
 function GI.symmetries(::GameSpec, s)
   return [
-    ((board=Board(s.board[sym]), curplayer=s.curplayer, finished=s.finished, winner=s.winner, amask=s.amask, boardSize=s.boardSize, planes=s.planes, emptyBoard=s.emptyBoard, neighbors=s.neighbors, diagonals=s.diagonals), sym)
+    ((board=Board(s.board[sym]), curplayer=s.curplayer), sym)
     for sym in SYMMETRIES]
 end
 
@@ -245,8 +308,8 @@ end
 using Crayons
 
 player_color(p) = p == WHITE ? crayon"light_red" : crayon"light_blue"
-player_name(p)  = p == WHITE ? "Red" : "Blue"
-player_mark(p)  = p == WHITE ? "o" : "x"
+player_name(p)  = p == WHITE ? "White" : "Black"
+player_mark(p)  = p == WHITE ? "o" : p == BLACK ? "x" : " "
 
 function GI.render(g::GameEnv; with_position_names=true, botmargin=true)
   pname = player_name(g.curplayer)
@@ -257,7 +320,11 @@ function GI.render(g::GameEnv; with_position_names=true, botmargin=true)
       pos = pos_of_xy((x, y))
       c = g.board[pos]
       if isnothing(c) || c == EMPTY
-        print(" ")
+        print(".")
+      elseif c == KO
+        print("*")
+      elseif c == FILL
+        print("#")
       else
         print(player_color(c), player_mark(c), crayon"reset")
       end

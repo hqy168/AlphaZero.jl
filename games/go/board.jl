@@ -9,7 +9,7 @@ using IterTools: chain
 
 # Cell occupants
 #@enum CELL_OCC WHITE = -1 EMPTY BLACK  FILL KO UNKNOWN
-WHITE, EMPTY, BLACK, FILL, KO, UNKNOWN = collect(-1:4)
+# WHITE, EMPTY, BLACK, FILL, KO, UNKNOWN = collect(-1:4)
 
 # Represents "group not found" in the LibertyTracker object
 MISSING_GROUP_ID = -1
@@ -18,6 +18,8 @@ struct PlayerMove
   color
   move
 end
+
+struct IllegalMove <:Exception end
 
 function place_stones!(board, color, stones)
   for s in stones
@@ -103,15 +105,16 @@ mutable struct LibertyTracker
   liberty_cache::Array{UInt8, 2}
   max_group_id::Int16
 
-  function LibertyTracker(env::GameEnv; group_index = nothing, groups = nothing,
+  function LibertyTracker(board_size; group_index = nothing, groups = nothing,
     liberty_cache = nothing, max_group_id = 1)
     # group_index: a NxN array of group_ids. -1 means no group
     # groups: a dict of group_id to groups
     # liberty_cache: a NxN array of liberty counts
-    N = env.boardSize
-    grp_idx = group_index != nothing ? group_index : -ones(Int16, N, N)
-    grps = groups != nothing ? groups : Dict{Int, Group}()
-    lib_cache = liberty_cache != nothing ? liberty_cache : zeros(UInt8, N, N)
+    # N = env.boardSize
+    N = board_size
+    grp_idx = group_index !== nothing ? group_index : -ones(Int16, N, N)
+    grps = groups !== nothing ? groups : Dict{Int, Group}()
+    lib_cache = liberty_cache !== nothing ? liberty_cache : zeros(UInt8, N, N)
     new(grp_idx, grps, lib_cache, max_group_id)
   end
 end
@@ -124,7 +127,7 @@ function deepcopy(lib_trac::LibertyTracker)
       for group in values(lib_trac.groups)
   )
   N = size(new_lib_cache, 1)
-  return LibertyTracker(GameEnv(N), group_index = new_group_index,
+  return LibertyTracker(N, group_index = new_group_index,
                   groups = new_groups,
                   liberty_cache = new_lib_cache,
                   max_group_id = lib_trac.max_group_id)
@@ -133,7 +136,7 @@ end
 function from_board(board, env::GameEnv)
   board = deepcopy(board)
   curr_group_id = 0
-  lib_tracker = LibertyTracker(env)
+  lib_tracker = LibertyTracker(env.boardSize)
   for color ∈ (WHITE, BLACK)
     while color ∈ board
       curr_group_id += 1
@@ -416,7 +419,7 @@ function all_legal_moves(pos::GoPosition)
   end
 
   # ...and retaking ko is always illegal
-  if pos.ko != nothing
+  if pos.ko !== nothing
     legal_moves[pos.ko...] = 0
   end
 
@@ -454,7 +457,7 @@ function play_move!(pos::GoPosition, c; color = nothing, mutate = false)
   # No suicides
   # Chinese/area scoring
   # Positional superko (this is very crudely approximate at the moment.)
-  if color == nothing
+  if color === nothing
     color = pos.to_play
   end
 
@@ -462,12 +465,13 @@ function play_move!(pos::GoPosition, c; color = nothing, mutate = false)
 
   @assert !new_pos.done
 
-  if c == nothing
+  if c === nothing
     new_pos = pass_move!(new_pos; mutate = mutate)
     return new_pos
   end
 
   if !is_move_legal(pos, c)
+    # print("c=", c, " board=", pos.board, "\n\n")
     throw(IllegalMove())
   end
 
