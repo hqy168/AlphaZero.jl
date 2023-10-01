@@ -23,8 +23,9 @@ struct IllegalMove <:Exception end
 
 function place_stones!(board, color, stones)
   for s in stones
-    board[s...] = color
-    # board = setindex(board, color, s...)
+    (col, row) = s
+    # board[s...] = color
+    setindex!(board, color, col, row)
   end
 end
 
@@ -302,11 +303,21 @@ mutable struct GoPosition
     caps = (0, 0), lib_tracker = nothing, ko = nothing,
     recent = Vector{PlayerMove}(), board_deltas = nothing, to_play = BLACK)
 
-    b = board != nothing ? board : deepcopy(env.board)
+    b = board !== nothing ? board : copyboard_from(env)
     lib_trac = lib_tracker != nothing ? lib_tracker : from_board(b, env)
     bd = board_deltas != nothing ? board_deltas : zeros(Int8, env.boardSize, env.boardSize, 0)
     new(env, b, n, komi, caps, lib_trac, ko, recent, bd, to_play, false)
   end
+end
+
+function copyboard_from(env::GameEnv) 
+  b = zeros(Int8, env.boardSize, env.boardSize)
+  for col in 1:env.boardSize
+    for row in 1:env.boardSize
+      b[col, row] = env.board[col, row]
+    end
+  end
+  return b
 end
 
 function deepcopy(pos::GoPosition)

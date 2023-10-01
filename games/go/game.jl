@@ -15,8 +15,10 @@ const KO = 3
 const UNKNOWN = 4
 
 const Cell = Player
-const Board = MMatrix{NUM_ROWS, NUM_COLS, Cell, NUM_POSITIONS} # SMatrix{NUM_COLS, NUM_ROWS, Cell, NUM_POSITIONS}
-const INITIAL_BOARD = @MMatrix zeros(Cell, NUM_ROWS, NUM_COLS)
+# const Board = MMatrix{NUM_ROWS, NUM_COLS, Cell, NUM_POSITIONS} # SMatrix{NUM_COLS, NUM_ROWS, Cell, NUM_POSITIONS}
+# const INITIAL_BOARD = @MMatrix zeros(Cell, NUM_ROWS, NUM_COLS)
+const Board = SMatrix{NUM_COLS, NUM_ROWS, Cell, NUM_POSITIONS}
+const INITIAL_BOARD = @SMatrix zeros(Cell, NUM_COLS, NUM_ROWS)
 const NUM_PLANES = 17
 # const EMPTY_BOARD = @MMatrix zeros(Cell, NUM_ROWS, NUM_COLS)
 # const ALL_COORDS = [(i, j) for i = 1:NUM_ROWS for j = 1:NUM_COLS]
@@ -24,7 +26,7 @@ const NUM_PLANES = 17
 # const NEIGHBORS = Dict((x, y) => filter(k->check_bounds(k),[(x+1, y), (x-1, y), (x, y+1), (x, y-1)]) for (x, y) in ALL_COORDS)
 # const DIAGONALS = Dict((x, y) => filter(k->check_bounds(k),[(x+1, y+1), (x+1, y-1), (x-1, y+1), (x-1, y-1)]) for (x, y) in ALL_COORDS)
 # const INITIAL_STATE = (board=INITIAL_BOARD, curplayer=BLACK, finished=false, winner = 0x00, amask = trues(NUM_POSITIONS), boardSize=BOARD_SIZE, planes=8, emptyBoard=EMPTY_BOARD, neighbors=NEIGHBORS,diagonals=DIAGONALS)
-const INITIAL_STATE = (board=INITIAL_BOARD, curplayer=BLACK)
+const INITIAL_STATE = (board=INITIAL_BOARD, curplayer=WHITE)
 
 # TODO: we could have the game parametrized by grid size.
 struct GameSpec <: GI.AbstractGameSpec end
@@ -45,11 +47,11 @@ mutable struct GameEnv <: GI.AbstractGameEnv
   neighbors::Dict{NTuple{2, Int}, Array{NTuple{2, Int}, 1}}
   diagonals::Dict{NTuple{2, Int}, Array{NTuple{2, Int}, 1}}
 
-  function GameEnv(board::Board = INITIAL_BOARD, curplayer::Cell = BLACK)    
+  function GameEnv(board::Board = INITIAL_BOARD, curplayer::Cell = BLACK)
     N = BOARD_SIZE
-    L = N * N    
+    L = N * N
     ALL_COORDS_N = [(i, j) for i = 1:N for j = 1:N]
-    EMPTY_BOARD_N = MMatrix{N, N, Cell, L}(zeros(Int8, N, N))
+    EMPTY_BOARD_N = SMatrix{N, N, Cell, L}(zeros(Int8, N, N))
     planes = NUM_PLANES
     @assert planes % 2 == 1
     planes = (planes - 1) ÷ 2
@@ -102,10 +104,12 @@ xy_of_pos(pos) = ((pos - 1) % BOARD_SIZE + 1, (pos - 1) ÷ BOARD_SIZE + 1)
 # Position(env::GameEnv; args...) = GoPosition(env; args...)
 
 function has_won(g::GameEnv, player)
+  avail_actions = GI.available_actions(g)
   pos = GoPosition(g)
   points = score(pos)
-  # print("points=", points, ", done=", pos.done, ", player=", player, "\n\n")
-  won = pos.done && ((points > 0  && player == BLACK) || (points < 0 && player == WHITE))
+  # print("points=", points, ", done=", pos.done, ", player=", player, ", empty_avail_actions=", isempty(avail_actions), "\n\n")
+  won = (pos.done || avail_actions === nothing || isempty(avail_actions)) && ((points > 0  && player == BLACK) || (points < 0 && player == WHITE))
+  # won = ((points > 0  && player == BLACK) || (points < 0 && player == WHITE))
   return won
 end
 
@@ -131,7 +135,7 @@ function update_actions_mask!(g::GameEnv)
         valid = true
       catch e
         # print("exception:", e, "\n\n")
-        if isa(e, IllegalMove) 
+        if isa(e, IllegalMove)
           valid = false
         end
       end
@@ -145,7 +149,7 @@ function update_actions_mask!(g::GameEnv)
   # end
 end
 
-function GI.actions_mask(g::GameEnv) 
+function GI.actions_mask(g::GameEnv)
   update_actions_mask!(g)
   return g.amask
 end
@@ -176,16 +180,20 @@ end
 
 function GI.play!(g::GameEnv, pos)
   # g.board = setindex(g.board, g.curplayer, pos)
-  # g.board[pos] = g.curplayer 
+  # g.board[pos] = g.curplayer
   # update_actions_mask!(g)
   position = GoPosition(g)
   c = xy_of_pos(pos)
   newPosition = play_move!(position, c; color = g.curplayer)
   len = length(newPosition.board)
   for i in collect(1:len)
-    g.board[i] = newPosition.board[i]
+    # g.board[i] = newPosition.board[i]
+    (col, row) = xy_of_pos(i)
+    player = newPosition.board[col, row]
+    g.board = setindex(g.board, player, col, row)
   end
-  g.curplayer = -g.curplayer 
+  # update_actions_mask!(g)
+  g.curplayer = -g.curplayer
   # p = g.curplayer
   # m = g.amask
   # println("curplayer=", g.curplayer, " board=", g.board, "\n\n")
