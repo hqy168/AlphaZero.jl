@@ -105,11 +105,13 @@ xy_of_pos(pos) = ((pos - 1) % BOARD_SIZE + 1, (pos - 1) ÷ BOARD_SIZE + 1)
 
 function has_won(g::GameEnv, player)
   avail_actions = GI.available_actions(g)
-  pos = GoPosition(g)
+  pos = GoPosition(g; komi = -7.5, to_play = g.curplayer)
   points = score(pos)
   # print("points=", points, ", done=", pos.done, ", player=", player, ", empty_avail_actions=", isempty(avail_actions), "\n\n")
-  won = (pos.done || avail_actions === nothing || isempty(avail_actions)) && ((points > 0  && player == BLACK) || (points < 0 && player == WHITE))
-  # won = ((points > 0  && player == BLACK) || (points < 0 && player == WHITE))
+  # if isempty(avail_actions)
+  #   print("avail_actions is empty")
+  # end
+  won = (pos.done || avail_actions === nothing || isempty(avail_actions)) && ((points > 0  && player == BLACK) || (points < 0 && player == WHITE))  
   return won
 end
 
@@ -126,12 +128,12 @@ GI.actions(::GameSpec) = ACTIONS
 function update_actions_mask!(g::GameEnv)
   g.amask = map(ACTIONS) do pos
     # g.board[pos] == EMPTY
-    position = GoPosition(g)
+    position = GoPosition(g; komi = -7.5, to_play = g.curplayer)
     c = xy_of_pos(pos)
     valid = is_move_legal(position, c)
     if valid
       try
-        play_move!(position, c; color = g.curplayer)
+        play_move!(position, c; color = position.to_play)
         valid = true
       catch e
         # print("exception:", e, "\n\n")
@@ -163,11 +165,17 @@ function terminal_white_reward(g::GameEnv)
   has_won(g, BLACK) && return 1.
   avail_actions = GI.available_actions(g)
   # print("g.amask=", g.amask, " avail_actions=", avail_actions, "\n\n")
+  # if isempty(avail_actions)
+  #   print("g.amask=", g.amask, ", avail_actions=", avail_actions, "\n\n")
+  # else 
+  #   print("g.amask=", g.amask, ", avail_actions_count=", length(avail_actions), "\n\n")
+  # end
   isempty(avail_actions) && return 0.
   return nothing
 end
 
 function GI.game_terminated(g::GameEnv)
+  update_actions_mask!(g)
   twr = terminal_white_reward(g)
   # print("GI.game_terminated: terminal_white_reward=", twr, "\n\n")
   !isnothing(twr)
@@ -182,9 +190,9 @@ function GI.play!(g::GameEnv, pos)
   # g.board = setindex(g.board, g.curplayer, pos)
   # g.board[pos] = g.curplayer
   # update_actions_mask!(g)
-  position = GoPosition(g)
+  position = GoPosition(g; komi = -7.5, to_play = g.curplayer)
   c = xy_of_pos(pos)
-  newPosition = play_move!(position, c; color = g.curplayer)
+  newPosition = play_move!(position, c; color = position.to_play)
   len = length(newPosition.board)
   for i in collect(1:len)
     # g.board[i] = newPosition.board[i]
@@ -193,7 +201,7 @@ function GI.play!(g::GameEnv, pos)
     g.board = setindex(g.board, player, col, row)
   end
   # update_actions_mask!(g)
-  g.curplayer = -g.curplayer
+  g.curplayer = newPosition.to_play
   # p = g.curplayer
   # m = g.amask
   # println("curplayer=", g.curplayer, " board=", g.board, "\n\n")
@@ -203,8 +211,8 @@ end
 ##### Simple heuristic for minmax
 #####
 
-function score_for(g::GameEnv, player)
-  pos = GoPosition(g)
+function score_for(g::GameEnv, player) ::Float64
+  pos = GoPosition(g; komi = -7.5, to_play = g.curplayer)
   estimate = score(pos)
   if player == WHITE
     estimate = -estimate
@@ -218,7 +226,7 @@ end
 
 function GI.heuristic_value(g::GameEnv)
   mine = heuristic_value_for(g, g.curplayer)
-  yours = heuristic_value_for(g, !g.curplayer)
+  yours = heuristic_value_for(g, -g.curplayer)
   return mine - yours
 end
 

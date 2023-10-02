@@ -16,6 +16,13 @@ const FULL = !CI
   @test true
 end
 
+@testset "AlphaGo" begin
+  include("test_go.jl")
+  include("test_mcts.jl")
+  include("test_mcts_player.jl")
+  include("test_features.jl")
+end
+
 @testset "Dummy Runs" begin
   dir = "sessions/test-tictactoe"
   @test dummy_run(experiments["tictactoe"], nostdout=false) == nothing
