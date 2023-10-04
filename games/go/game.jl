@@ -106,12 +106,8 @@ xy_of_pos(pos) = ((pos - 1) % BOARD_SIZE + 1, (pos - 1) ÷ BOARD_SIZE + 1)
 function has_won(g::GameEnv, player)
   avail_actions = GI.available_actions(g)
   pos = GoPosition(g; komi = -7.5, to_play = g.curplayer)
-  points = score(pos)
-  # print("points=", points, ", done=", pos.done, ", player=", player, ", empty_avail_actions=", isempty(avail_actions), "\n\n")
-  # if isempty(avail_actions)
-  #   print("avail_actions is empty")
-  # end
-  won = (pos.done || avail_actions === nothing || isempty(avail_actions)) && ((points > 0  && player == BLACK) || (points < 0 && player == WHITE))  
+  points = score(pos)  
+  won = isempty(avail_actions) && ((points > 0  && player == BLACK) || (points < 0 && player == WHITE))  
   return won
 end
 
@@ -201,7 +197,7 @@ function GI.play!(g::GameEnv, pos)
     g.board = setindex(g.board, player, col, row)
   end
   # update_actions_mask!(g)
-  g.curplayer = newPosition.to_play
+  g.curplayer = -g.curplayer
   # p = g.curplayer
   # m = g.amask
   # println("curplayer=", g.curplayer, " board=", g.board, "\n\n")
@@ -313,9 +309,9 @@ function GI.read_state(::GameSpec)
   nw = count(==(WHITE), b)
   nb = count(==(BLACK), b)
   if nw == nb
-    return (board=b, curplayer=BLACK)
-  elseif nb == nw + 1
     return (board=b, curplayer=WHITE)
+  elseif nw == nb + 1
+    return (board=b, curplayer=BLACK)
   else
     return nothing
   end
