@@ -17,11 +17,15 @@ module Examples
   include("../games/go/main.jl")
   export Go
 
+  include("../games/gomoku/main.jl")
+  export Gomoku
+
   const games = Dict(
     "grid-world" => GridWorld.GameSpec(),
     "tictactoe" => Tictactoe.GameSpec(),
     "connect-four" => ConnectFour.GameSpec(),
     "go" => Go.GameSpec(),
+    "gomoku" => Gomoku.GameSpec(),
     "mancala" => Mancala.GameSpec())
     # "ospiel_ttt" => OSpielTictactoe.GameSpec()
   # ospiel_ttt is added from openspiel_example.jl when OpenSpiel.jl is imported
@@ -32,6 +36,7 @@ module Examples
     "tictactoe" => Tictactoe.Training.experiment,
     "connect-four" => ConnectFour.Training.experiment,
     "go" => Go.Training.experiment,
+    "gomoku" => Gomoku.Training.experiment,
     "mancala" => Mancala.Training.experiment)
     # "ospiel_ttt" => OSpielTictactoe.Training.experiment
 

@@ -309,9 +309,9 @@ function GI.read_state(::GameSpec)
   nw = count(==(WHITE), b)
   nb = count(==(BLACK), b)
   if nw == nb
-    return (board=b, curplayer=BLACK)
-  elseif nb == nw + 1
     return (board=b, curplayer=WHITE)
+  elseif nw == nb + 1
+    return (board=b, curplayer=BLACK)
   else
     return nothing
   end
