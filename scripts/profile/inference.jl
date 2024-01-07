@@ -4,7 +4,8 @@
 
 using AlphaZero
 using Setfield
-import CUDA
+# import CUDA
+import Metal
 
 using Plots
 
@@ -31,7 +32,7 @@ function profile_inference(
   batch = [state for _ in 1:batch_size]
   Network.evaluate_batch(net, batch) # To compile everything
   GC.gc(true)
-  info = CUDA.@timed for _ in 1:nrep Network.evaluate_batch(net, batch) end
+  info = Metal.@timed for _ in 1:nrep Network.evaluate_batch(net, batch) end
   return info.time / nrep / batch_size * 1_000_000
 end
 

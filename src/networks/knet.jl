@@ -10,7 +10,8 @@ using ..AlphaZero
 
 using Base: @kwdef
 
-import CUDA
+# import CUDA
+import Metal
 import Knet
 
 include("knet/layers.jl")
@@ -72,8 +73,8 @@ abstract type KNetwork <: AbstractNetwork end
 
 Base.copy(nn::KNetwork) = Base.deepcopy(nn)
 
-Network.to_gpu(nn::KNetwork) = CUDA.functional() ? Knet.gpucopy(nn) : nn
-Network.to_cpu(nn::KNetwork) = CUDA.functional() ? Knet.cpucopy(nn) : nn
+Network.to_gpu(nn::KNetwork) = Metal.functional() ? Knet.gpucopy(nn) : nn
+Network.to_cpu(nn::KNetwork) = Metal.functional() ? Knet.cpucopy(nn) : nn
 
 params_(x) = []
 params_(x::Knet.Param) = [x]

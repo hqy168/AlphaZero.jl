@@ -8,14 +8,17 @@ export SimpleNet, SimpleNetHP, ResNet, ResNetHP
 
 using ..AlphaZero
 
-using CUDA
+# using CUDA
+using Metal
 using Base: @kwdef
 
 import Flux
 
-CUDA.allowscalar(false)
+# CUDA.allowscalar(false)
+Metal.allowscalar(false)
 array_on_gpu(::Array) = false
-array_on_gpu(::CuArray) = true
+array_on_gpu(::MtlArray) = true
+# array_on_cpu(::MtlArray) = false
 array_on_gpu(arr) = error("Usupported array type: ", typeof(arr))
 
 using Flux: relu, softmax, flatten
@@ -51,7 +54,8 @@ end
 Network.to_cpu(nn::FluxNetwork) = Flux.cpu(nn)
 
 function Network.to_gpu(nn::FluxNetwork)
-  CUDA.allowscalar(false)
+  # CUDA.allowscalar(false)
+  Metal.allowscalar(false)
   return Flux.gpu(nn)
 end
 

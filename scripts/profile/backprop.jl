@@ -4,7 +4,8 @@
 
 using AlphaZero
 using Setfield
-import CUDA
+# import CUDA
+import Metal
 
 # nsys launch julia --project
 # using Revise; Revise.includet("scripts/profile/backprop.jl")
@@ -35,9 +36,9 @@ function profile_backprop(
   tr = AlphaZero.Trainer(env.gspec, env.curnn, experience, env.params.learning)
   AlphaZero.batch_updates!(tr, 1)  # to compile everything
   if profile
-    CUDA.@profile AlphaZero.batch_updates!(tr, num_batches)
+    Metal.@profile AlphaZero.batch_updates!(tr, num_batches)
   else
-    CUDA.@time AlphaZero.batch_updates!(tr, num_batches)
+    Metal.@time AlphaZero.batch_updates!(tr, num_batches)
   end
   return
 end

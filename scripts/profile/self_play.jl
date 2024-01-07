@@ -18,7 +18,8 @@ using LoggingExtras
 # using ProfileView
 # import StatProfilerHTML
 
-import CUDA
+# import CUDA
+import Metal
 
 function profile_self_play(
   exp::Experiment = Examples.experiments["connect-four"];
@@ -35,7 +36,7 @@ function profile_self_play(
   session = Session(exp, autosave=false, dir="sessions/profile-backprop-$(exp.name)")
   env = session.env
   UI.Log.section(session.logger, 1, "Profiling data generation")
-  CUDA.@time AlphaZero.self_play_step!(env, session)
+  Metal.@time AlphaZero.self_play_step!(env, session)
   return
 end
 
