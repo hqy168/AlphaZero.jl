@@ -21,6 +21,28 @@ array_on_gpu(::MtlArray) = true
 # array_on_cpu(::MtlArray) = false
 array_on_gpu(arr) = error("Usupported array type: ", typeof(arr))
 
+# Base.getindex(::typeof(mtl), xs...) = MtlArray([xs...])
+function Base.unsafe_convert(::Type{Ptr{S}}, x::MtlArray{T}) where {S, T}
+  # ptr = pointer(x)
+  # x2 = Base.unsafe_wrap(Array{S}, ptr, size(x); own=false)
+  # Base.unsafe_convert(Ptr{S}, x2)
+  x2 = Array{S}(undef, size(x))
+  copyto!(x2, convert(Array{S}, x))
+  Base.unsafe_convert(Ptr{S}, x2)
+end
+
+# function Base.unsafe_convert(::Type{Ptr{T}}, x::MtlArray{T}) where {T}
+  # ptr = Base.unsafe_convert(MtlPointer{T}, x)
+  # x2 = Type{Array{T}}(undef, x.dims)
+  # x2 = Base.unsafe_wrap(Array{T}, ptr, x.dims; own=false)
+  # Base.unsafe_convert(Ptr{T}, x2)
+  
+  # tmp = typeof(x.buffer) <: Mem.HIPBuffer ? x.buffer : x.buffer.dev_ptr
+  # Base.unsafe_convert(Ptr{T}, x.buffer) + x.offset
+  # convert(Ptr{T}, x) + Base._memory_offset(x, 0)
+  # pointer(x)
+# end
+
 using Flux: relu, softmax, flatten
 using Flux: Chain, Dense, Conv, BatchNorm, SkipConnection
 import Zygote
@@ -55,7 +77,7 @@ Network.to_cpu(nn::FluxNetwork) = Flux.cpu(nn)
 
 function Network.to_gpu(nn::FluxNetwork)
   # CUDA.allowscalar(false)
-  Metal.allowscalar(false)
+  Metal.allowscalar(true)
   return Flux.gpu(nn)
 end
 
